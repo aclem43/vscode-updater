@@ -1,8 +1,10 @@
 const https = require('https');
+const fs = require('fs');
+const zlib = require('zlib');
 const { execSync } = require('child_process');
 
 const url = 'https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-archive'
-let downloadurl;
+var downloadurl;
 
 const fileVersion = async (fileurl) =>{
   let command = `${fileurl}\\bin\\code.cmd "-v"`;
@@ -14,12 +16,36 @@ const fileVersion = async (fileurl) =>{
   
 }
 
+const download = async (url, dest) => {
+  console.log("Beginning Download");
+  var file = fs.createWriteStream(dest);
+  
+  return new Promise((resolve,reject)=>{
 
-const httpget = (url) => {
-  return new Promise(function(resolve, reject) {
-      var req = https.get(url, function(res) {
+    https.get(url, function(response) {
+      response.pipe(file);
+
+      file.on('finish', function() {
+        file.close();
+        resolve()
+        
+      });
+      file.on('error',(err)=>{
+        console.error(err)
+        reject()
+      })
+    });
+  })
+  
+
+}
+
+const httpsget = (url) => {
+  return new Promise((resolve, reject) => {
+      let req = https.get(url, (res) => {
         if (res.statusCode != 302) {reject()}
         else {resolve(res)}
+        
       });
       // on request error, reject
       // if there's post data, write it to the request
@@ -27,13 +53,10 @@ const httpget = (url) => {
   });
 }
 
-const main = async () => {
-  console.log(await parse_version())
-}
 
 const get_current_vscode_version = async () => {
-  const locatiourl = await httpget(url)
-  downloadurl = locatiourl
+  const locatiourl = await httpsget(url)
+  downloadurl =  locatiourl.headers.location
   let ver = locatiourl.headers.location.match(/x64-([0-9\.]+).zip/)
   if (ver){
     ver = ver[1];
@@ -56,6 +79,13 @@ const parse_version = async () => {
   }  
 }
 
+const main = async () => {
+  if (await parse_version()) {
+    await download(downloadurl,"./VscodeUpdate.zip")
+   
+    console.log("Download Complete")
+  }
+}
 
 main()
 
